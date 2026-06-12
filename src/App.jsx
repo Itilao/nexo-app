@@ -23,7 +23,7 @@ function parseValor(text) {
 }
 function fmt(n) { return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
-function gerarResposta(input, gastos, metas) {
+function gerarResposta(input, gastos, metas, receitas) {
   const t = input.toLowerCase();
 
   // "Tenho uma sobra de dinheiro, o que faço com ela?" → investimento
@@ -90,17 +90,38 @@ function gerarResposta(input, gastos, metas) {
     return `📊 **Orçamento Mensal — R$ ${fmt(r)}**\n\n*Regra 50-30-20 adaptada:*\n\n🏠 Moradia (30%): R$ ${fmt(r * 0.30)}\n🍽️ Alimentação (20%): R$ ${fmt(r * 0.20)}\n🚗 Transporte (10%): R$ ${fmt(r * 0.10)}\n💊 Saúde (10%): R$ ${fmt(r * 0.10)}\n🎮 Lazer (10%): R$ ${fmt(r * 0.10)}\n💰 Poupança (20%): **R$ ${fmt(r * 0.20)}**\n\n💡 Separe os 20% de poupança logo ao receber — pague-se primeiro!`;
   }
 
+  // Registrar receita/ganho
+  if (/ganhei|recebi|caiu|entrou|fatur/i.test(t)) {
+    const valor = parseValor(t);
+    if (valor) {
+      const origem = /bet|aposta|jogo|cassino|loteria/i.test(t) ? "🎲 Apostas" :
+        /sal[áa]rio|sal[áa]rio/i.test(t) ? "💼 Salário" :
+        /freela|freelance|bico|extra/i.test(t) ? "💻 Freelance" :
+        /vend[ai]/i.test(t) ? "🏷️ Venda" :
+        /presente|deram|de aniversário/i.test(t) ? "🎁 Presente" : "💰 Outras receitas";
+      const totalReceitas = (receitas?.reduce((s, r) => s + r.valor, 0) || 0) + valor;
+      const comentario = /bet|aposta|jogo|cassino|loteria/i.test(t)
+        ? "\n\n💡 Boa! Que tal já separar uma parte disso pra uma meta, em vez de deixar tudo disponível pra continuar apostando?"
+        : "\n\n💡 Já pensou em direcionar uma parte dessa entrada extra pra uma meta ou reserva?";
+      return `🟢 **Entrada registrada!**\n\n${origem}: **+R$ ${fmt(valor)}**\nTotal de receitas no mês: **R$ ${fmt(totalReceitas)}**${comentario}\n\n📊 Use a aba **Metas** se quiser guardar parte desse valor com objetivo definido!`;
+    }
+  }
+
   // Registrar gasto
-  if (/gastei|paguei|comprei|gasto de/i.test(t)) {
+  if (/gastei|paguei|comprei|perdi|torrei|queimei|gasto de|fui no|sa[íi]\s/i.test(t)) {
     const valor = parseValor(t);
     if (valor) {
       const cat = /comida|restaurante|lanche|mercado|ifood/i.test(t) ? "🍽️ Alimentação" :
         /uber|gasolina|transporte|ônibus|combustível/i.test(t) ? "🚗 Transporte" :
         /luz|água|internet|aluguel|condomínio/i.test(t) ? "🏠 Moradia" :
         /roupa|calçado|shopping/i.test(t) ? "👕 Vestuário" :
+        /jogo|aposta|bet|cassino|loteria/i.test(t) ? "🎲 Apostas" :
         /lazer|cinema|bar|show|viagem/i.test(t) ? "🎮 Lazer" : "📦 Outros";
       const total = gastos.reduce((s, g) => s + g.valor, 0) + valor;
-      return `✅ **Gasto registrado no Dashboard!**\n\n${cat}: **R$ ${fmt(valor)}**\nTotal do mês até agora: **R$ ${fmt(total)}**\n\n💡 Acesse a aba **Dashboard** para ver seus gráficos atualizados!`;
+      const comentario = /perdi|torrei|queimei/i.test(t) && /jogo|aposta|bet|cassino/i.test(t)
+        ? "\n\n⚠️ Apostas costumam pesar no orçamento sem a gente perceber. Vale acompanhar esse total ao longo do mês."
+        : "";
+      return `✅ **Gasto registrado no Dashboard!**\n\n${cat}: **R$ ${fmt(valor)}**\nTotal do mês até agora: **R$ ${fmt(total)}**${comentario}\n\n💡 Acesse a aba **Dashboard** para ver seus gráficos atualizados!`;
     }
   }
 
@@ -146,22 +167,135 @@ function gerarResposta(input, gastos, metas) {
     return `🧠 **O que o Nexo faz:**\n\n**Finanças:**\n• "Gastei R$ 150 no mercado"\n• "Monte um orçamento com R$ 4.000"\n• "Quanto sobra se ganho R$ 3.500?"\n\n**Cálculos:**\n• "Quanto rende R$ 5.000 no CDB a 12% ao ano?"\n• "Quero parcelar R$ 800 em 10x a 1,99%"\n• "Desconto de 15% em R$ 250"\n\n**Metas:**\n• "Quero juntar R$ 10.000 em 12 meses"\n• "Como economizar R$ 500 por mês?"\n\nUse as abas acima para ver o **Dashboard** e o **Planejador de Metas**!`;
   }
 
-  return `Entendi! Posso te ajudar com:\n\n💰 **"Gastei R$ X em [categoria]"** — registra no dashboard\n🧮 **"Quanto rende R$ X a Y% ao ano?"** — simula investimento\n📊 **"Orçamento com R$ X"** — distribui sua renda\n🎯 **"Quero juntar R$ X em Y meses"** — cria plano de meta\n\nSeja específico e te dou uma análise completa! 😊`;
+  const respostasGenericas = [
+    `Ainda não sei responder isso direito 🤔\n\nMas posso te ajudar com:\n• 💰 "Gastei R$ X em [algo]" — registro no dashboard\n• 🧮 "Quanto rende R$ X a Y% ao ano?" — simulação\n• 🎯 "Quero juntar R$ X em Y meses" — plano de meta\n\nTenta reformular assim que eu te ajudo melhor!`,
+    `Hmm, não captei essa 😅\n\nSe quiser, me conta de outro jeito — por exemplo:\n• "Gastei R$ 80 com transporte"\n• "Vale a pena parcelar R$ 500 em 5x?"\n• "Quanto preciso guardar pra juntar R$ 3.000?"`,
+    `Essa eu ainda não sei calcular sozinho 🙏\n\nMas se você me der um valor (e o contexto: gasto, meta ou investimento), eu já te ajudo. Dá uma olhada também na aba **Calculadora** — lá dá pra simular visualmente!`,
+    `Boa pergunta, mas preciso de mais detalhes pra te ajudar bem.\n\nMe diga um valor em R$ e o que você quer fazer com ele (gastar, investir, juntar) que eu calculo certinho! 💡`,
+  ];
+  return respostasGenericas[Math.floor(Math.random() * respostasGenericas.length)];
 }
 
 // ── Dados iniciais ────────────────────────────────────────────────────────
-const CATS = ["🍽️ Alimentação", "🏠 Moradia", "🚗 Transporte", "🎮 Lazer", "💊 Saúde", "👕 Vestuário", "📦 Outros"];
-const COLORS_CAT = ["#7850ff", "#00d4aa", "#ffb830", "#ff5068", "#4fc3f7", "#f06292", "#a5d6a7"];
+const CATS = ["🍽️ Alimentação", "🏠 Moradia", "🚗 Transporte", "🎮 Lazer", "💊 Saúde", "👕 Vestuário", "🎲 Apostas", "📦 Outros"];
+const COLORS_CAT = ["#7850ff", "#00d4aa", "#ffb830", "#ff5068", "#4fc3f7", "#f06292", "#ba68c8", "#a5d6a7"];
+
+// Dica do dia — rotaciona com base no dia do mês
+const DICAS_DIA = [
+  "Guardando R$ 50/dia, você junta R$ 1.500 em 30 dias.",
+  "Compras parceladas sem juros não pesam — mas somadas, podem comprometer seu orçamento futuro.",
+  "Reserva de emergência ideal: 3 a 6 meses dos seus gastos fixos.",
+  "Renegociar uma dívida com desconto à vista pode valer mais que parcelar.",
+  "Pequenos gastos diários (cafézinho, app de transporte) são os que mais pesam no fim do mês.",
+  "Investir R$ 100/mês por 10 anos a 10% a.a. pode virar mais de R$ 20.000.",
+  "Anotar todo gasto, mesmo o pequeno, é o primeiro passo pra qualquer controle financeiro funcionar.",
+];
+function getDicaDoDia() {
+  const dia = new Date().getDate();
+  return DICAS_DIA[dia % DICAS_DIA.length];
+}
 
 function getMesAtual() { return new Date().toLocaleString("pt-BR", { month: "long", year: "numeric" }); }
+function getChaveMes(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function getNomeMes(chave) {
+  const [ano, mes] = chave.split("-");
+  const d = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+  return d.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+}
+
+// ── Conquistas / Badges ─────────────────────────────────────────────────────
+const BADGES = [
+  { id: "primeiro_gasto", icon: "📝", nome: "Primeiro Registro", desc: "Registrou seu primeiro gasto", check: (ctx) => ctx.gastos.length >= 1 },
+  { id: "primeira_meta", icon: "🎯", nome: "Visionário", desc: "Criou sua primeira meta", check: (ctx) => ctx.metas.length >= 1 },
+  { id: "primeiro_aporte", icon: "💪", nome: "Mão na Massa", desc: "Fez seu primeiro aporte numa meta", check: (ctx) => ctx.metas.some(m => m.atual > 0) },
+  { id: "meta_concluida", icon: "🏆", nome: "Meta Batida", desc: "Concluiu uma meta 100%", check: (ctx) => ctx.metas.some(m => m.atual >= m.alvo) },
+  { id: "saldo_positivo", icon: "🟢", nome: "No Azul", desc: "Terminou o mês com saldo positivo", check: (ctx) => ctx.totalReceitas > ctx.totalGastos && ctx.totalReceitas > 0 },
+  { id: "dez_gastos", icon: "📊", nome: "Organizado", desc: "Registrou 10 transações de gastos", check: (ctx) => ctx.gastos.length >= 10 },
+  { id: "diversificou", icon: "🗂️", nome: "Visão Ampla", desc: "Registrou gastos em 4+ categorias diferentes", check: (ctx) => new Set(ctx.gastos.map(g => g.cat)).size >= 4 },
+  { id: "renda_extra", icon: "💸", nome: "Renda Extra", desc: "Registrou uma receita além da principal", check: (ctx) => ctx.receitas.length >= 1 },
+  { id: "calculista", icon: "🧮", nome: "Calculista", desc: "Usou a calculadora pelo menos uma vez", check: (ctx) => ctx.calcUsosCount >= 1 },
+  { id: "veterano", icon: "🌟", nome: "Veterano", desc: "Acompanhou o Nexo por 2 meses ou mais", check: (ctx) => Object.keys(ctx.historico || {}).length >= 2 },
+];
+
+function calcularBadgesDesbloqueadas(ctx) {
+  return BADGES.filter(b => b.check(ctx)).map(b => b.id);
+}
+
+// ── Compartilhamento via WhatsApp ──────────────────────────────────────────
+function gerarTextoResumo({ totalGastos, totalReceitas, gastoPorCat, metas, mesAnterior }) {
+  const saldo = totalReceitas - totalGastos;
+  const topCat = [...gastoPorCat].sort((a, b) => b.valor - a.valor)[0];
+  let txt = `📊 *Meu resumo financeiro — ${getMesAtual()}*\n\n`;
+  txt += `🟢 Receitas: R$ ${fmt(totalReceitas)}\n`;
+  txt += `🔴 Gastos: R$ ${fmt(totalGastos)}\n`;
+  txt += `${saldo >= 0 ? "✅" : "⚠️"} Saldo: ${saldo >= 0 ? "+" : ""}R$ ${fmt(saldo)}\n`;
+  if (topCat && topCat.valor > 0) txt += `\n📌 Categoria que mais gastei: ${topCat.label}\n`;
+  if (mesAnterior) {
+    const diff = totalGastos - mesAnterior.totalGastos;
+    txt += `\n${diff <= 0 ? "📉" : "📈"} ${diff <= 0 ? "Gastei R$ " + fmt(Math.abs(diff)) + " menos" : "Gastei R$ " + fmt(diff) + " mais"} que no mês anterior\n`;
+  }
+  const metaDestaque = metas.find(m => m.atual >= m.alvo) || [...metas].sort((a, b) => (b.atual / b.alvo) - (a.atual / a.alvo))[0];
+  if (metaDestaque) {
+    const pct = Math.min((metaDestaque.atual / metaDestaque.alvo) * 100, 100);
+    txt += `\n🎯 Meta "${metaDestaque.nome}": ${pct.toFixed(0)}% concluída\n`;
+  }
+  txt += `\n_Feito com o Nexo — assistente financeiro pessoal_ 🧠`;
+  return txt;
+}
+function compartilharWhatsApp(texto) {
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, "_blank");
+}
+
+// ── Resumo de "bem-vindo de volta" ─────────────────────────────────────────
+function gerarResumoVoltaUsuario({ gastosNovos, receitasNovas, badgesNovas, diasDesde }) {
+  const partes = [];
+  if (diasDesde >= 1) {
+    partes.push(diasDesde === 1 ? "Foi 1 dia desde sua última visita." : `Foram ${diasDesde} dias desde sua última visita.`);
+  }
+  if (gastosNovos.length > 0) {
+    const total = gastosNovos.reduce((s, g) => s + g.valor, 0);
+    partes.push(`Você registrou ${gastosNovos.length} novo${gastosNovos.length > 1 ? "s" : ""} gasto${gastosNovos.length > 1 ? "s" : ""} totalizando R$ ${fmt(total)}.`);
+  }
+  if (receitasNovas.length > 0) {
+    const total = receitasNovas.reduce((s, r) => s + r.valor, 0);
+    partes.push(`Entrou R$ ${fmt(total)} em receitas novas. 🟢`);
+  }
+  if (badgesNovas.length > 0) {
+    const nomes = badgesNovas.map(b => `${b.icon} ${b.nome}`).join(", ");
+    partes.push(`Você desbloqueou: ${nomes}! 🎉`);
+  }
+  return partes;
+}
+
+// ── Persistência local (salva no navegador do usuário) ─────────────────────
+const STORAGE_KEY = "nexo_dados_v1";
+
+function carregarDados() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function salvarDados(dados) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+  } catch {
+    // se der erro (modo privado, etc), simplesmente não salva
+  }
+}
 
 // ── Quiz de onboarding ─────────────────────────────────────────────────────
 const QUIZ_PERGUNTA = "Qual seu maior desafio financeiro hoje?";
 const QUIZ_OPCOES = [
-  { icon: "📉", label: "Não sei onde meu dinheiro vai", tab: "dashboard", msg: "Quero entender pra onde meu dinheiro está indo" },
-  { icon: "💳", label: "Vale a pena parcelar essa compra?", tab: "calc", msg: "Vale a pena parcelar essa compra?" },
-  { icon: "🎯", label: "Quero juntar dinheiro pra algo", tab: "metas", msg: "Quero começar a juntar dinheiro pra um objetivo" },
-  { icon: "📊", label: "Não sei organizar meu orçamento", tab: "chat", msg: "Me ajuda a organizar meu orçamento mensal" },
+  { icon: "📉", label: "Não sei onde meu dinheiro vai", tab: "dashboard", msg: "Quero entender pra onde meu dinheiro está indo", color: "#7850ff" },
+  { icon: "💳", label: "Vale a pena parcelar essa compra?", tab: "calc", msg: "Vale a pena parcelar essa compra?", color: "#00d4aa" },
+  { icon: "🎯", label: "Quero juntar dinheiro pra algo", tab: "metas", msg: "Quero começar a juntar dinheiro pra um objetivo", color: "#ffb830" },
+  { icon: "📊", label: "Não sei organizar meu orçamento", tab: "chat", msg: "Me ajuda a organizar meu orçamento mensal", color: "#ff5068" },
 ];
 
 // Sugestões com linguagem mais humana, variam por horário
@@ -276,32 +410,94 @@ function DonutChart({ data }) {
 }
 
 // ── App principal ─────────────────────────────────────────────────────────
-export default function App() {
-  const [tab, setTab] = useState("chat");
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [started, setStarted] = useState(false);
-  const [quizDone, setQuizDone] = useState(false);
-  const bottomRef = useRef(null);
-
-  // Dashboard
-  const [gastos, setGastos] = useState([
+const DADOS_PADRAO = {
+  gastos: [
     { id: 1, cat: "🍽️ Alimentação", valor: 320, desc: "Supermercado" },
     { id: 2, cat: "🏠 Moradia", valor: 900, desc: "Aluguel" },
     { id: 3, cat: "🚗 Transporte", valor: 150, desc: "Combustível" },
     { id: 4, cat: "🎮 Lazer", valor: 80, desc: "Cinema" },
-  ]);
+  ],
+  metas: [
+    { id: 1, nome: "Reserva de emergência", alvo: 10000, atual: 3200, prazo: 12, cor: "#7850ff" },
+    { id: 2, nome: "Viagem", alvo: 5000, atual: 1500, prazo: 8, cor: "#00d4aa" },
+  ],
+  receitas: [],
+  historico: {},
+  calcUsosCount: 0,
+  badgesVistas: [],
+  ultimaVisita: null,
+  messages: [],
+  quizDone: false,
+  started: false,
+};
+
+export default function App() {
+  const dadosSalvos = useRef(carregarDados());
+  const [tab, setTab] = useState("chat");
+  const [messages, setMessages] = useState(dadosSalvos.current?.messages ?? DADOS_PADRAO.messages);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [started, setStarted] = useState(dadosSalvos.current?.started ?? DADOS_PADRAO.started);
+  const [quizDone, setQuizDone] = useState(dadosSalvos.current?.quizDone ?? DADOS_PADRAO.quizDone);
+  const bottomRef = useRef(null);
+
+  // Dashboard
+  const [gastos, setGastos] = useState(dadosSalvos.current?.gastos ?? DADOS_PADRAO.gastos);
   const [novoGasto, setNovoGasto] = useState({ cat: CATS[0], valor: "", desc: "" });
 
   // Metas
-  const [metas, setMetas] = useState([
-    { id: 1, nome: "Reserva de emergência", alvo: 10000, atual: 3200, prazo: 12, cor: C.accent },
-    { id: 2, nome: "Viagem", alvo: 5000, atual: 1500, prazo: 8, cor: C.teal },
-  ]);
+  const [metas, setMetas] = useState(dadosSalvos.current?.metas ?? DADOS_PADRAO.metas);
+  const [receitas, setReceitas] = useState(dadosSalvos.current?.receitas ?? DADOS_PADRAO.receitas);
+  const [historico, setHistorico] = useState(dadosSalvos.current?.historico ?? DADOS_PADRAO.historico);
+  const [calcUsosCount, setCalcUsosCount] = useState(dadosSalvos.current?.calcUsosCount ?? DADOS_PADRAO.calcUsosCount);
+  const [badgesVistas, setBadgesVistas] = useState(dadosSalvos.current?.badgesVistas ?? DADOS_PADRAO.badgesVistas);
   const [novaMeta, setNovaMeta] = useState({ nome: "", alvo: "", atual: "0", prazo: "12" });
   const [aporteId, setAporteId] = useState(null);
   const [aporteVal, setAporteVal] = useState("");
+
+  // "Bem-vindo de volta" — calculado uma única vez no carregamento
+  const [welcomeBack] = useState(() => {
+    const dados = dadosSalvos.current;
+    if (!dados || !dados.ultimaVisita || !dados.quizDone) return null;
+    const ultimaVisita = new Date(dados.ultimaVisita);
+    const agora = new Date();
+    const diasDesde = Math.floor((agora - ultimaVisita) / (1000 * 60 * 60 * 24));
+    if (diasDesde < 1) return null; // visitou hoje mesmo, não mostra
+
+    const gastosNovos = (dados.gastos || []).filter(g => g.id > ultimaVisita.getTime());
+    const receitasNovas = (dados.receitas || []).filter(r => r.id > ultimaVisita.getTime());
+    const badgesAntes = dados.badgesVistas || [];
+    const ctxAntes = {
+      gastos: dados.gastos || [], metas: dados.metas || [], receitas: dados.receitas || [],
+      totalGastos: (dados.gastos || []).reduce((s, g) => s + g.valor, 0),
+      totalReceitas: (dados.receitas || []).reduce((s, r) => s + r.valor, 0),
+      calcUsosCount: dados.calcUsosCount || 0, historico: dados.historico || {},
+    };
+    const badgesAtuais = calcularBadgesDesbloqueadas(ctxAntes);
+    const badgesNovas = BADGES.filter(b => badgesAtuais.includes(b.id) && !badgesAntes.includes(b.id));
+
+    const partes = gerarResumoVoltaUsuario({ gastosNovos, receitasNovas, badgesNovas, diasDesde });
+    if (partes.length === 0) return null;
+    return partes;
+  });
+  const [showWelcomeBack, setShowWelcomeBack] = useState(true);
+
+  // Salva automaticamente sempre que algo relevante mudar
+  useEffect(() => {
+    salvarDados({ gastos, metas, receitas, messages, quizDone, started, historico, calcUsosCount, badgesVistas });
+  }, [gastos, metas, receitas, messages, quizDone, started, historico, calcUsosCount, badgesVistas]);
+
+  // Atualiza o snapshot do mês atual sempre que gastos/receitas mudam
+  useEffect(() => {
+    const chave = getChaveMes();
+    const tGastos = gastos.reduce((s, g) => s + g.valor, 0);
+    const tReceitas = receitas.reduce((s, r) => s + r.valor, 0);
+    setHistorico(h => {
+      const atual = h[chave];
+      if (atual && atual.totalGastos === tGastos && atual.totalReceitas === tReceitas) return h;
+      return { ...h, [chave]: { totalGastos: tGastos, totalReceitas: tReceitas } };
+    });
+  }, [gastos, receitas]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
@@ -313,21 +509,34 @@ export default function App() {
     const nm = [...messages, { role: "user", content: u }];
     setMessages(nm); setLoading(true);
 
+    // auto-registrar receita se mencionado (ganhei, recebi, caiu, entrou, fatur...)
+    if (/ganhei|recebi|caiu|entrou|fatur/i.test(u)) {
+      const v = parseValor(u);
+      if (v) {
+        const origem = /bet|aposta|jogo|cassino|loteria/i.test(u) ? "🎲 Apostas" :
+          /sal[áa]rio/i.test(u) ? "💼 Salário" :
+          /freela|bico|extra/i.test(u) ? "💻 Freelance" :
+          /vend[ai]/i.test(u) ? "🏷️ Venda" :
+          /presente|deram|aniversário/i.test(u) ? "🎁 Presente" : "💰 Outras receitas";
+        setReceitas(r => [...r, { id: Date.now(), origem, valor: v, desc: u.slice(0, 30) }]);
+      }
+    }
     // auto-registrar gasto se mencionado
-    if (/gastei|paguei|comprei/i.test(u)) {
+    else if (/gastei|paguei|comprei|perdi|torrei|queimei|fui no|sa[íi]\s/i.test(u)) {
       const v = parseValor(u);
       if (v) {
         const cat = /comida|restaurante|lanche|mercado|ifood/i.test(u) ? "🍽️ Alimentação" :
           /uber|gasolina|transporte|ônibus/i.test(u) ? "🚗 Transporte" :
           /luz|água|internet|aluguel/i.test(u) ? "🏠 Moradia" :
           /roupa|calçado|shopping/i.test(u) ? "👕 Vestuário" :
+          /jogo|aposta|bet|cassino|loteria/i.test(u) ? "🎲 Apostas" :
           /lazer|cinema|bar|show/i.test(u) ? "🎮 Lazer" : "📦 Outros";
         setGastos(g => [...g, { id: Date.now(), cat, valor: v, desc: u.slice(0, 30) }]);
       }
     }
 
     setTimeout(() => {
-      setMessages([...nm, { role: "assistant", content: gerarResposta(u, gastos, metas) }]);
+      setMessages([...nm, { role: "assistant", content: gerarResposta(u, gastos, metas, receitas) }]);
       setLoading(false);
     }, 600 + Math.random() * 500);
   }
@@ -341,6 +550,7 @@ export default function App() {
     label: c, valor: gastos.filter(g => g.cat === c).reduce((s, g) => s + g.valor, 0), color: COLORS_CAT[i]
   }));
   const totalGastos = gastos.reduce((s, g) => s + g.valor, 0);
+  const totalReceitas = receitas.reduce((s, r) => s + r.valor, 0);
   const ultimos7 = [
     { label: "Seg", valor: 45 }, { label: "Ter", valor: 120 }, { label: "Qua", valor: 30 },
     { label: "Qui", valor: 200 }, { label: "Sex", valor: 85 }, { label: "Sáb", valor: 160 },
@@ -348,6 +558,37 @@ export default function App() {
   ];
 
   const sugestoes = getSugestoesContextuais();
+
+  // Conquistas
+  const badgeCtx = { gastos, metas, receitas, totalGastos, totalReceitas, calcUsosCount, historico };
+  const badgesDesbloqueadas = calcularBadgesDesbloqueadas(badgeCtx);
+
+  // Atualiza badges vistas e marca o momento da visita (salvo junto no próximo save)
+  useEffect(() => {
+    setBadgesVistas(prev => {
+      const novas = badgesDesbloqueadas.filter(id => !prev.includes(id));
+      if (novas.length === 0) return prev;
+      return [...prev, ...novas];
+    });
+  }, [badgesDesbloqueadas.join(",")]);
+
+  useEffect(() => {
+    const onUnload = () => salvarDados({ gastos, metas, receitas, messages, quizDone, started, historico, calcUsosCount, badgesVistas, ultimaVisita: new Date().toISOString() });
+    window.addEventListener("beforeunload", onUnload);
+    window.addEventListener("pagehide", onUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      window.removeEventListener("pagehide", onUnload);
+      onUnload();
+    };
+  }, []);
+
+  // Histórico mensal — mês atual vs anterior
+  const chaveAtual = getChaveMes();
+  const dataAtual = new Date();
+  const chaveAnterior = getChaveMes(new Date(dataAtual.getFullYear(), dataAtual.getMonth() - 1, 1));
+  const histAtual = historico[chaveAtual] || { totalGastos, totalReceitas };
+  const histAnterior = historico[chaveAnterior];
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto" }}>
@@ -361,7 +602,22 @@ export default function App() {
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, display: "inline-block" }} /> Assistente Pessoal com IA
           </div>
         </div>
-        <div style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{getMesAtual()}</div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12, color: C.muted }}>{getMesAtual()}</span>
+          <button onClick={() => {
+            if (window.confirm("Isso vai apagar todos os seus dados salvos (gastos, metas e conversas). Tem certeza?")) {
+              localStorage.removeItem(STORAGE_KEY);
+              setGastos(DADOS_PADRAO.gastos);
+              setMetas(DADOS_PADRAO.metas);
+              setReceitas(DADOS_PADRAO.receitas);
+              setMessages([]);
+              setStarted(false);
+              setQuizDone(false);
+            }
+          }} title="Limpar dados salvos" style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: 4, lineHeight: 1 }}>
+            🗑️
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -371,6 +627,7 @@ export default function App() {
           { id: "dashboard", icon: "📊", label: "Dashboard" },
           { id: "calc", icon: "🧮", label: "Calculadora" },
           { id: "metas", icon: "🎯", label: "Metas" },
+          { id: "perfil", icon: "🏆", label: "Perfil" },
         ].map(tb => <Tab key={tb.id} label={tb.label} icon={tb.icon} active={tab === tb.id} onClick={() => setTab(tb.id)} />)}
       </div>
 
@@ -380,35 +637,61 @@ export default function App() {
         {/* ── CHAT ── */}
         {tab === "chat" && (
           <>
+            {welcomeBack && showWelcomeBack && (
+              <div style={{ width: "100%", background: `linear-gradient(135deg, rgba(120,80,255,0.18), rgba(0,212,170,0.12))`, border: `1px solid rgba(120,80,255,0.35)`, borderRadius: 14, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 18 }}>👋</span> Bem-vindo de volta!
+                  </div>
+                  <button onClick={() => setShowWelcomeBack(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {welcomeBack.map((p, i) => (
+                    <div key={i} style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5, display: "flex", gap: 6 }}>
+                      <span style={{ color: C.teal }}>•</span><span>{p}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {!started && !quizDone && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 24 }}>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ width: 68, height: 68, borderRadius: "50%", margin: "0 auto 14px", background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: `0 0 40px rgba(120,80,255,0.3)` }}>🧠</div>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Olá! Eu sou o <span style={{ background: `linear-gradient(90deg,${C.accent},${C.teal})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Nexo</span></h2>
-                  <p style={{ margin: "10px 0 0", color: C.text, fontSize: 14, fontWeight: 600 }}>{QUIZ_PERGUNTA}</p>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", margin: "0 auto 10px", background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: `0 0 30px rgba(120,80,255,0.3)` }}>🧠</div>
+                  <p style={{ margin: "0 0 4px", color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>Oi, eu sou o Nexo</p>
+                  <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, lineHeight: 1.3 }}>{QUIZ_PERGUNTA}</h2>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%" }}>
                   {QUIZ_OPCOES.map((o, i) => (
                     <button key={i} onClick={() => {
                       setQuizDone(true);
                       if (o.tab !== "chat") { setTab(o.tab); }
                       else { sendMessage(o.msg); }
-                    }} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 15px", color: C.text, cursor: "pointer", textAlign: "left", fontSize: 13, lineHeight: 1.4, display: "flex", gap: 10, alignItems: "center", transition: "all 0.2s" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(120,80,255,0.15)"; e.currentTarget.style.borderColor = "rgba(120,80,255,0.5)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = C.border; }}>
-                      <span style={{ fontSize: 18 }}>{o.icon}</span><span>{o.label}</span>
+                    }} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 12px", color: C.text, cursor: "pointer", textAlign: "center", fontSize: 12.5, lineHeight: 1.35, display: "flex", flexDirection: "column", gap: 10, alignItems: "center", transition: "all 0.2s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(120,80,255,0.15)"; e.currentTarget.style.borderColor = "rgba(120,80,255,0.5)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
+                      <span style={{ width: 40, height: 40, borderRadius: 12, background: `${o.color}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>{o.icon}</span>
+                      <span style={{ fontWeight: 600 }}>{o.label}</span>
                     </button>
                   ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: -4 }}>
+                  <div style={{ display: "flex", gap: 5 }}>
+                    <span style={{ width: 18, height: 4, borderRadius: 2, background: `linear-gradient(90deg,${C.accent},${C.teal})` }} />
+                  </div>
+                  <button onClick={() => { setQuizDone(true); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 4 }}>
+                    Prefiro escrever o que preciso →
+                  </button>
                 </div>
               </div>
             )}
 
             {!started && quizDone && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, paddingTop: 24 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, paddingTop: 24 }}>
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ width: 68, height: 68, borderRadius: "50%", margin: "0 auto 14px", background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, boxShadow: `0 0 40px rgba(120,80,255,0.3)` }}>🧠</div>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Tudo pronto!</h2>
-                  <p style={{ margin: "6px 0 0", color: C.muted, fontSize: 13 }}>Aqui vão algumas ideias do que você pode me perguntar:</p>
+                  <div style={{ width: 56, height: 56, borderRadius: "50%", margin: "0 auto 12px", background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 0 30px rgba(120,80,255,0.3)` }}>🧠</div>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Pode perguntar!</h2>
+                  <p style={{ margin: "6px 0 0", color: C.muted, fontSize: 13 }}>Aqui vão algumas ideias pra começar:</p>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, width: "100%" }}>
                   {sugestoes.map((s, i) => (
@@ -418,6 +701,13 @@ export default function App() {
                       <span style={{ fontSize: 15 }}>{s.icon}</span><span>{s.text}</span>
                     </button>
                   ))}
+                </div>
+                <div style={{ width: "100%", background: "rgba(120,80,255,0.08)", border: `1px solid rgba(120,80,255,0.25)`, borderRadius: 14, padding: "13px 15px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>💡</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: C.teal, fontWeight: 700, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>Dica do dia</div>
+                    <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>{getDicaDoDia()}</div>
+                  </div>
                 </div>
               </div>
             )}
@@ -443,6 +733,26 @@ export default function App() {
         {/* ── DASHBOARD ── */}
         {tab === "dashboard" && (
           <>
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>🟢 Receitas</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.teal }}>R$ {fmt(totalReceitas)}</div>
+                </div>
+                <div style={{ width: 1, background: C.border }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>🔴 Gastos</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.danger }}>R$ {fmt(totalGastos)}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>Saldo do mês — {getMesAtual()}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: (totalReceitas - totalGastos) >= 0 ? C.teal : C.danger }}>
+                  {(totalReceitas - totalGastos) >= 0 ? "+" : ""}R$ {fmt(totalReceitas - totalGastos)}
+                </div>
+              </div>
+            </Card>
+
             <Card>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Total de gastos — {getMesAtual()}</div>
               <div style={{ fontSize: 28, fontWeight: 800, background: `linear-gradient(90deg,${C.accent},${C.teal})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>R$ {fmt(totalGastos)}</div>
@@ -504,7 +814,7 @@ export default function App() {
         )}
 
         {/* ── CALCULADORA ── */}
-        {tab === "calc" && <CalculadoraTab />}
+        {tab === "calc" && <CalculadoraTab onUsar={() => setCalcUsosCount(c => c + 1)} />}
 
         {/* ── METAS ── */}
         {tab === "metas" && (
@@ -588,6 +898,109 @@ export default function App() {
             </Card>
           </>
         )}
+
+        {/* ── PERFIL / CONQUISTAS ── */}
+        {tab === "perfil" && (
+          <>
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <div style={{ fontSize: 28 }}>🏆</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>Conquistas</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{badgesDesbloqueadas.length} de {BADGES.length} desbloqueadas</div>
+                </div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 999, height: 8, overflow: "hidden", marginTop: 10 }}>
+                <div style={{ height: "100%", width: `${(badgesDesbloqueadas.length / BADGES.length) * 100}%`, background: `linear-gradient(90deg,${C.accent},${C.teal})`, borderRadius: 999, transition: "width 0.6s ease" }} />
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {BADGES.map(b => {
+                  const unlocked = badgesDesbloqueadas.includes(b.id);
+                  return (
+                    <div key={b.id} style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                      padding: "14px 8px", borderRadius: 12,
+                      background: unlocked ? "rgba(120,80,255,0.12)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${unlocked ? "rgba(120,80,255,0.35)" : C.border}`,
+                      opacity: unlocked ? 1 : 0.45, textAlign: "center",
+                    }}>
+                      <span style={{ fontSize: 26, filter: unlocked ? "none" : "grayscale(1)" }}>{b.icon}</span>
+                      <span style={{ fontSize: 11.5, fontWeight: 700 }}>{b.nome}</span>
+                      <span style={{ fontSize: 10, color: C.muted, lineHeight: 1.3 }}>{b.desc}</span>
+                      {unlocked && <span style={{ fontSize: 9, color: C.teal, fontWeight: 700 }}>✓ Desbloqueado</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>📅 {getNomeMes(chaveAtual)} vs {histAnterior ? getNomeMes(chaveAnterior) : "mês anterior"}</div>
+              {histAnterior ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, marginBottom: 4 }}>
+                      <span>Gastos</span>
+                      <span>{getNomeMes(chaveAnterior)}: R$ {fmt(histAnterior.totalGastos)}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 20, fontWeight: 800 }}>R$ {fmt(histAtual.totalGastos)}</span>
+                      {(() => {
+                        const diff = histAtual.totalGastos - histAnterior.totalGastos;
+                        const pct = histAnterior.totalGastos > 0 ? (diff / histAnterior.totalGastos) * 100 : 0;
+                        const bom = diff <= 0;
+                        return (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: bom ? C.teal : C.danger, background: bom ? "rgba(0,212,170,0.12)" : "rgba(255,80,104,0.12)", padding: "3px 8px", borderRadius: 8 }}>
+                            {bom ? "↓" : "↑"} {Math.abs(pct).toFixed(0)}%
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, marginBottom: 4 }}>
+                      <span>Receitas</span>
+                      <span>{getNomeMes(chaveAnterior)}: R$ {fmt(histAnterior.totalReceitas)}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 20, fontWeight: 800 }}>R$ {fmt(histAtual.totalReceitas)}</span>
+                      {(() => {
+                        const diff = histAtual.totalReceitas - histAnterior.totalReceitas;
+                        const pct = histAnterior.totalReceitas > 0 ? (diff / histAnterior.totalReceitas) * 100 : 0;
+                        const bom = diff >= 0;
+                        return (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: bom ? C.teal : C.danger, background: bom ? "rgba(0,212,170,0.12)" : "rgba(255,80,104,0.12)", padding: "3px 8px", borderRadius: 8 }}>
+                            {diff >= 0 ? "↑" : "↓"} {Math.abs(pct).toFixed(0)}%
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+                  Ainda não temos dados do mês anterior pra comparar. Volte aqui no próximo mês para ver sua evolução! 📈
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>📤 Compartilhar resumo</div>
+              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 12, lineHeight: 1.5 }}>
+                Mande seu resumo financeiro do mês pra alguém — ou pra você mesmo guardar no WhatsApp.
+              </div>
+              <button onClick={() => {
+                const texto = gerarTextoResumo({ totalGastos, totalReceitas, gastoPorCat, metas, mesAnterior: histAnterior });
+                compartilharWhatsApp(texto);
+              }} style={{ width: "100%", background: "#25D366", border: "none", borderRadius: 10, padding: "12px", color: "#0b0b14", fontWeight: 800, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <span style={{ fontSize: 16 }}>💬</span> Compartilhar no WhatsApp
+              </button>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Input do chat */}
@@ -621,7 +1034,7 @@ export default function App() {
 }
 
 // ── Calculadora visual interativa ─────────────────────────────────────────
-function CalculadoraTab() {
+function CalculadoraTab({ onUsar }) {
   const [modo, setModo] = useState("investimento");
   const [vals, setVals] = useState({});
   const [resultado, setResultado] = useState(null);
@@ -629,6 +1042,7 @@ function CalculadoraTab() {
   function set(k, v) { setVals(p => ({ ...p, [k]: v })); setResultado(null); }
 
   function calcular() {
+    if (onUsar) onUsar();
     const n = k => parseFloat((vals[k] || "0").replace(",", "."));
     if (modo === "investimento") {
       const valor = n("valor"), taxa = n("taxa") / 100, meses = n("meses");
